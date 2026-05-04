@@ -1,9 +1,28 @@
 #!/usr/bin/env python3
 """Block permutation scrambler/descrambler."""
+import os
+import shutil
+import subprocess
 import random
 import numpy as np
 import cv2
 from seed import Seed
+
+
+def _find_ffmpeg() -> str | None:
+    """Locate ffmpeg executable. Check PATH then common install locations."""
+    ffmpeg = shutil.which('ffmpeg')
+    if ffmpeg:
+        return ffmpeg
+    candidates = [
+        r'D:\ffmpeg\ffmpeg-master-latest-win64-gpl-shared\bin\ffmpeg.exe',
+        r'C:\ffmpeg\bin\ffmpeg.exe',
+        r'C:\Program Files\ffmpeg\bin\ffmpeg.exe',
+    ]
+    for p in candidates:
+        if os.path.isfile(p):
+            return p
+    return None
 
 
 def _get_perm(width: int, height: int, block_size: int, seed_val: int):
@@ -79,25 +98,80 @@ def scramble_video(input_path: str, output_path: str, seed: Seed, progress_callb
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    writer = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
-    if not writer.isOpened():
-        cap.release()
-        return False
     frame_idx = 0
-    while True:
-        ok, frame = cap.read()
-        if not ok:
-            break
-        if frame.ndim == 2:
-            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
-        elif frame.ndim == 3 and frame.shape[2] == 4:
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-        out = scramble_image(frame, seed)
-        writer.write(out)
-        frame_idx += 1
-        if progress_callback:
-            progress_callback(int(100 * frame_idx / max(total, 1)))
+
+    ffmpeg_path = _find_ffmpeg()
+    use_ffmpeg = ffmpeg_path is not None
+
+    if use_ffmpeg:
+        # FFmpeg H.264 with audio copy via stdin pipe
+        ffmpeg_cmd = [
+            ffmpeg_path,
+            '-y',
+            '-f', 'rawvideo',
+            '-vcodec', 'rawvideo',
+            '-pix_fmt', 'bgr24',
+            '-s', f'{w}x{h}',
+            '-r', str(fps),
+            '-thread_queue_size', '512',
+            '-i', '-',               # stdin: scrambled raw video
+            '-i', input_path,        # original file: audio source
+            '-c:v', 'libx264',
+            '-crf', '18',
+            '-preset', 'medium',
+            '-pix_fmt', 'yuv420p',
+            '-c:a', 'copy',
+            '-map', '0:v:0',
+            '-map', '1:a:0?',
+            '-shortest',
+            output_path
+        ]
+        proc = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        writer = None
+    else:
+        # Fallback: OpenCV mp4v (no audio)
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        writer = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
+        if not writer.isOpened():
+            cap.release()
+            return False
+        proc = None
+
+    try:
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                break
+            if frame.ndim == 2:
+                frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+            elif frame.ndim == 3 and frame.shape[2] == 4:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+            out = scramble_image(frame, seed)
+
+            if proc:
+                proc.stdin.write(out.tobytes())
+            elif writer:
+                writer.write(out)
+
+            frame_idx += 1
+            if progress_callback:
+                progress_callback(int(100 * frame_idx / max(total, 1)))
+    except Exception:
+        cap.release()
+        if proc:
+            proc.stdin.close()
+            proc.wait()
+        if writer:
+            writer.release()
+        raise
+
     cap.release()
-    writer.release()
+    if proc:
+        proc.stdin.close()
+        ret = proc.wait()
+        if ret != 0:
+            return False
+    if writer:
+        writer.release()
     return True
