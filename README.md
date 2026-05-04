@@ -7,42 +7,30 @@
 - **混淆加密**：将图片/视频按指定块大小（如 8/16/32/64）进行伪随机块置换打乱。
 - **种子驱动**：加密时生成包含长宽比、块大小、随机种子的密钥（Base64），可用于精确还原。
 - **解密透镜（实时）**：透明置顶浮窗，拖动到任意屏幕区域（浏览器、播放器、其他软件上方），实时捕获并解混淆显示框内内容。
-- **双版本交付**：
-  - **Python 原型**（根目录 `.py` 文件）：无需编译，安装依赖后直接运行，适合快速体验与验证。
-  - **C++ 生产版**（`src/` 目录）：基于 Qt6 + OpenCV + DXGI 硬件加速捕获，性能更高、延迟更低。
+- **纯 Win32 实现**：Lens 窗口使用 Windows API 直接管理，物理像素级精确对齐，无 Qt 坐标系统干扰。
 
 ## 文件结构
 
 ```
 RealTimeMix/
-├── CMakeLists.txt              # C++ 构建配置
-├── main.py                     # Python 入口
-├── seed.py                     # 种子编解码（与 C++ 兼容）
-├── scrambler.py                # 混淆/解混淆核心
-├── lens_widget.py              # 解密透镜窗口
-├── main_window.py              # 主界面
-├── src/                        # C++ 源码
-│   ├── main.cpp
-│   ├── core/
-│   │   ├── seed.h / seed.cpp
-│   │   ├── scrambler.h / scrambler.cpp
-│   │   ├── screen_capture.h / screen_capture_win.cpp   # DXGI 屏幕捕获
-│   ├── ui/
-│   │   ├── lens_widget.h / lens_widget.cpp
-│   │   ├── main_window.h / main_window.cpp
-│   └── utils/
-│       └── base64.h / base64.cpp
+├── main.py              # 程序入口
+├── main_window.py       # 主界面（Qt）
+├── lens_window.py       # 解密透镜（纯 Win32）
+├── scrambler.py         # 混淆/解混淆核心算法
+├── seed.py              # 种子编解码
+├── README.md
+└── *.png                # 示例图片
 ```
 
-## Python 原型快速开始
+## 快速开始
 
 ### 环境要求
 - Python 3.10+
-- Windows（屏幕捕获依赖 Windows API，其他平台可手动替换为相应截屏库）
+- Windows（屏幕捕获依赖 Windows API）
 
 ### 安装依赖
 ```bash
-pip install PyQt6 opencv-python numpy
+pip install PyQt6 opencv-python numpy mss
 ```
 
 ### 运行
@@ -55,70 +43,231 @@ python main.py
 2. **解密透镜**：切换到 "Decrypt Lens" 标签页，粘贴种子，点击 "Start Lens"。透镜窗口会出现在屏幕上，拖动到任意位置即可实时解混淆该区域。
 3. **透镜交互**：
    - **左键拖拽**：移动窗口
-   - **右键菜单**：调整大小预设（480p/720p/1080p/自定义）或关闭透镜
+   - **边缘/角落拖拽**：调整窗口大小（保持宽高比）
+   - **右键菜单**：调整大小预设（100%/150%/200%/Fit/自定义）或关闭透镜
+   - **双击**：关闭透镜
+   - **Ctrl+Shift+方向键**：精确移动 1 物理像素
 
-## C++ 生产版编译
+---
 
-### 依赖
-- CMake 3.20+
-- Qt6 (Core, Widgets, Gui, Multimedia, MultimediaWidgets, OpenGLWidgets)
-- OpenCV 4.x
-- Windows SDK（用于 DXGI Desktop Duplication API）
-- MSVC 2019+ 或 MinGW-w64
+## 算法详解
 
-### 编译步骤
-```bash
-# 配置（根据实际安装路径修改 CMAKE_PREFIX_PATH）
-cmake -B build -S . -DCMAKE_PREFIX_PATH="C:/opencv/build;C:/Qt/6.5.3/msvc2019_64"
+### 1. 概述
 
-# 构建
-cmake --build build --config Release
+RealTimeMix 采用**块级伪随机置换（Block Permutation）**算法：
+- 将图像切分为等大的正方形块
+- 使用种子初始化伪随机数生成器
+- 通过 Fisher-Yates 洗牌生成全局块置换表
+- 按置换表重新排列所有完整块的位置
+- 边缘不足一整块的部分保持原样
 
-# 运行
-./build/Release/RealTimeMix.exe
+该算法是**可逆的**（双射），且置换表仅由种子决定，与图像内容无关。
+
+### 2. 块网格划分
+
+对于给定的图像尺寸 `(width, height)` 和块大小 `block_size`：
+
+```
+cols = width  // block_size   # 水平方向完整块数
+rows = height // block_size   # 垂直方向完整块数
+n    = cols * rows            # 总块数
 ```
 
-> **提示**：确保 OpenCV 和 Qt6 的运行时 DLL 在可执行文件目录或系统 PATH 中。
+只有 `cols × rows` 个完整块参与置换。剩余的边缘条带（右侧和/或底部）**不参与打乱**，直接保留原像素值。
 
-## 算法说明
+**示例**：1280×720 图像，block_size = 32
+- `cols = 1280 // 32 = 40`
+- `rows = 720 // 32 = 22`
+- 参与置换的块数：`n = 40 × 22 = 880`
+- 边缘：底部 `720 - 22×32 = 16` 像素高的条带保持原样
 
-### 混淆（Scramble）
-1. 将图像/帧切分为 `block_size × block_size` 的网格。
-2. 使用种子初始化 `mt19937_64` 伪随机数生成器。
-3. 通过 Fisher-Yates shuffle 生成块置换表 `P`。
-4. 将第 `i` 个源块复制到目标帧的第 `P[i]` 个位置。
-5. 边缘不足一整块的部分保留原样。
+### 3. 置换表生成（Fisher-Yates Shuffle）
 
-### 解混淆（Descramble）
-利用种子的逆运算：`dst[i] = src[P[i]]`，将像素块还原到正确位置。
+置换表 `P` 是一个长度为 `n` 的整数数组，表示每个源块应被放置到的目标位置。
 
-### 种子格式（20 字节，Base64 URL-safe）
-| 字段 | 大小 | 说明 |
-|------|------|------|
-| version | 1B | 协议版本（当前为 1） |
-| aspect_w / aspect_h | 各 2B | 原始媒体长宽比 |
-| block_size | 2B | 混淆块大小（像素） |
-| algorithm | 1B | 算法标识（0 = 块置换） |
-| seed | 8B | 64 位随机种子 |
-| crc32 | 4B | 前 16 字节 CRC32 校验 |
+**生成过程**：
 
-## 性能与优化
+```python
+P = [0, 1, 2, ..., n-1]          # 初始恒等排列
+rng = random.Random(seed_val)    # 用 64 位种子初始化 MT19937
+rng.shuffle(P)                   # 原地 Fisher-Yates 洗牌
+```
 
-| 版本 | 屏幕捕获 | 解混淆 | 适用场景 |
-|------|----------|--------|----------|
-| Python | `QScreen.grabWindow` (GDI) | CPU (OpenCV) | 原型验证、中小窗口预览 |
-| C++ | DXGI Desktop Duplication | CPU/OpenCL (OpenCV UMat) | 高分辨率、低延迟、大窗口 |
+Fisher-Yates 洗牌保证每个排列出现的概率完全均等（`1/n!`），且是**确定性**的：相同的 `seed_val` 总是产生相同的 `P`。
 
-C++ 版本可通过以下方式进一步优化：
-- 使用 OpenCL/CUDA 加速块置换（OpenCV `cv::UMat`）。
-- 使用 GPU 直通渲染（OpenGL/DirectX 纹理）减少 CPU→GPU 拷贝。
+**示例**（n=6，seed=42）：
+```
+初始: P = [0, 1, 2, 3, 4, 5]
+洗牌后: P = [3, 0, 5, 1, 2, 4]
+含义:
+  源块 0 → 目标位置 3
+  源块 1 → 目标位置 0
+  源块 2 → 目标位置 5
+  ...
+```
+
+### 4. 混淆（Scramble）
+
+对于每个完整块 `(r, c)`，其中 `0 ≤ r < rows`, `0 ≤ c < cols`：
+
+```
+src_idx = r * cols + c              # 源块线性索引
+dst_idx = P[src_idx]                # 查置换表得到目标位置
+dst_r   = dst_idx // cols           # 目标行
+dst_c   = dst_idx % cols            # 目标列
+
+# 像素级复制
+dst[dst_r*bs : (dst_r+1)*bs, dst_c*bs : (dst_c+1)*bs]
+    = src[r*bs : (r+1)*bs, c*bs : (c+1)*bs]
+```
+
+**边缘处理**：
+```python
+full_h = rows * block_size
+full_w = cols * block_size
+
+# 底部边缘条带（如果存在）
+if full_h < height:
+    dst[full_h:height, 0:full_w] = src[full_h:height, 0:full_w]
+
+# 右侧边缘条带（如果存在）
+if full_w < width:
+    dst[0:full_h, full_w:width] = src[0:full_h, full_w:width]
+
+# 右下角角落（如果存在）
+if full_h < height and full_w < width:
+    dst[full_h:height, full_w:width] = src[full_h:height, full_w:width]
+```
+
+### 5. 解混淆（Descramble）
+
+解混淆是混淆的**精确逆运算**。利用同一个置换表 `P`：
+
+对于每个目标位置 `(r, c)`：
+
+```
+dst_idx = r * cols + c              # 目标块线性索引
+src_idx = P[dst_idx]                # 从置换表查到源块位置
+src_r   = src_idx // cols           # 源行
+src_c   = src_idx % cols            # 源列
+
+# 像素级复制
+dst[r*bs : (r+1)*bs, c*bs : (c+1)*bs]
+    = src[src_r*bs : (src_r+1)*bs, src_c*bs : (src_c+1)*bs]
+```
+
+由于 `P` 是双射（一一对应），上述操作精确还原原始图像。
+
+**关键性质**：
+- `scramble(descramble(X)) == X`（完美 roundtrip）
+- `descramble(scramble(X)) == X`（完美 roundtrip）
+- 边缘像素在混淆/解混淆中均保持原样
+
+### 6. 算法安全性说明
+
+⚠️ **这不是密码学安全的加密算法**。块置换是一种**混淆（obfuscation）**手段，其特点：
+
+| 特性 | 说明 |
+|---|---|
+| 密钥空间 | 64 位种子 → 2⁶⁴ 种可能的排列 |
+| 块内信息 | 每个 `block_size × block_size` 块内部像素**完全保留**，仅块间位置被打乱 |
+| 已知明文攻击 | 若攻击者拥有原始图像和混淆图像，可轻易推导出置换表 |
+| 统计特征 | 颜色直方图、局部纹理统计特征完全不变 |
+| 适用场景 | 内容隐藏、预览保护、趣味效果，**不适用于高安全需求场景** |
+
+如需密码学级安全，应在块置换前对每个块进行 AES 加密，并将加密后的块再进行置换。
+
+---
+
+## 种子格式
+
+种子是算法的全部密钥信息，采用紧凑的二进制结构 + URL-safe Base64 编码。
+
+### 二进制结构（20 字节，小端序）
+
+| 字段 | 偏移 | 大小 | 类型 | 说明 |
+|------|------|------|------|------|
+| version | 0 | 1B | uint8 | 协议版本，当前为 `1` |
+| aspect_w | 1 | 2B | uint16 | 原始媒体宽度（用于 lens 精确对齐） |
+| aspect_h | 3 | 2B | uint16 | 原始媒体高度 |
+| block_size | 5 | 2B | uint16 | 混淆块大小（像素） |
+| algorithm | 7 | 1B | uint8 | 算法标识，`0` = 块置换 |
+| seed | 8 | 8B | uint64 | 64 位伪随机种子 |
+| crc32 | 16 | 4B | uint32 | 前 16 字节的 CRC32 校验 |
+
+### 编码
+
+1. 按 `STRUCT_FMT = '<BHHHBQI'` 打包为 20 字节
+2. 使用 URL-safe Base64 编码（`+` → `-`, `/` → `_`）
+3. 去除尾部的 `=` 填充符
+
+**示例种子**：
+```
+ATAADQAgAAIAAAAAAJDU5rM
+```
+解码后：
+- version = 1
+- aspect_w = 1280
+- aspect_h = 720
+- block_size = 32
+- algorithm = 0
+- seed = 1777877226329289700
+
+### 校验
+
+种子字符串解码后，重新计算前 16 字节的 CRC32，与最后 4 字节比对。不匹配则拒绝，防止手动篡改或传输错误。
+
+---
+
+## 透镜窗口技术细节
+
+### 为什么用纯 Win32？
+
+Qt 的 `QWidget` 使用**逻辑坐标**（device-independent pixels），在 175% DPI 下：`self.resize(730)` → Windows 物理大小 = `730 × 1.75 = 1277.5 ≈ 1278`。没有任何整数逻辑尺寸能精确映射到目标物理像素（如 1280），导致捕获后 `cv2.resize` 产生 1~2px 拉伸，块边界错位。
+
+`LensWindow` 直接使用 `SetWindowPos` 设置**物理像素**，`GetWindowRect` 读取的也是物理像素，`mss` 捕获即得精确原始分辨率，descramble 后块边界完美对齐。
+
+### 显示流水线
+
+```
+屏幕捕获 (mss/DXGI) → 物理像素 BGRA
+    ↓
+cv2.resize → 种子原始尺寸 (如 1280×720)
+    ↓
+descramble_image → 还原块排列
+    ↓
+cv2.resize → 窗口物理尺寸
+    ↓
+BGR → BGRA → CreateDIBSection → UpdateLayeredWindow
+```
+
+### 自捕获排除
+
+- **Win10 2004+**：`SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` 让系统捕获 API（包括 `mss`）看不到透镜窗口本身
+- **旧版 Windows**：作为 fallback，透镜在捕获瞬间通过 `SetWindowPos` 将自己移出屏幕，捕获完成后再移回
+
+---
+
+## 性能
+
+| 环节 | 实现 | 性能特征 |
+|------|------|----------|
+| 屏幕捕获 | `mss` (Windows DXGI) | 硬件加速，~5-10ms @ 1080p |
+| 图像缩放 | OpenCV `cv2.resize` | CPU 双线性插值，~2-5ms |
+| 混淆/解混淆 | Python 循环 + numpy | ~5-10ms @ 1280×720, bs=32 |
+| 显示 | `UpdateLayeredWindow` | 直接位图提交，~1-2ms |
+| 总帧延迟 | — | ~20-30ms，等效 30-50fps |
+
+透镜默认以 50ms（20fps）定时器运行，足够流畅且 CPU 占用低。
+
+---
 
 ## 注意事项
 
 1. **视频编码**：输出视频默认使用 `mp4v` 编码器。如果系统缺少对应编码支持，可尝试改为 `avc1` 或 `XVID`。
-2. **DXGI 捕获**：C++ 版本的 DXGI 屏幕捕获在 UAC 提升窗口、锁屏、部分全屏游戏场景下可能暂时不可用，程序会自动跳过帧并使用上一帧内容。
-3. **Python 透镜帧率**：默认锁定约 30fps 以平衡 CPU 占用。如果机器性能较强，可在 `lens_widget.py` 中降低 `timer.setInterval()` 的值。
-4. **跨显示器**：当前版本默认捕获主显示器。多显示器环境下，若透镜拖到副显示器，捕获内容可能为黑屏或错位（C++ 版本可通过枚举 `IDXGIOutput` 扩展支持）。
+2. **屏幕捕获**：`mss` 在 UAC 提升窗口、锁屏、部分全屏游戏场景下可能暂时不可用，程序会自动跳过帧。
+3. **跨显示器**：`mss` 可捕获任意显示器内容。透镜拖动到副显示器时，捕获坐标自动跟随，无需额外配置。
+4. **块大小选择**：块越大，混淆效果越强，但边缘条带也越大（因为 `rows = h // bs` 变小）。推荐 16 或 32。
 
 ## 许可
 
