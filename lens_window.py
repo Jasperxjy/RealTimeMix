@@ -51,6 +51,8 @@ VK_RIGHT = 0x27
 VK_DOWN = 0x28
 VK_SHIFT = 0x10
 VK_CONTROL = 0x11
+VK_OEM_PLUS = 0xBB
+VK_OEM_MINUS = 0xBD
 MK_LBUTTON = 0x0001
 SWP_NOSIZE = 0x0001
 SWP_NOMOVE = 0x0002
@@ -283,6 +285,10 @@ class LensWindow:
                 self._nudge(0, -1)
             elif hid == 4:
                 self._nudge(0, 1)
+            elif hid == 5:
+                self._adjust_scale(0.01)
+            elif hid == 6:
+                self._adjust_scale(-0.01)
             return 0
         if msg == WM_COMMAND:
             self._on_command(wparam)
@@ -378,6 +384,9 @@ class LensWindow:
         user32.RegisterHotKey(self._hwnd, 2, MOD_CONTROL | MOD_SHIFT, VK_RIGHT)
         user32.RegisterHotKey(self._hwnd, 3, MOD_CONTROL | MOD_SHIFT, VK_UP)
         user32.RegisterHotKey(self._hwnd, 4, MOD_CONTROL | MOD_SHIFT, VK_DOWN)
+        # Scale adjust hotkeys: Ctrl+Shift++ / Ctrl+Shift+-
+        user32.RegisterHotKey(self._hwnd, 5, MOD_CONTROL | MOD_SHIFT, VK_OEM_PLUS)
+        user32.RegisterHotKey(self._hwnd, 6, MOD_CONTROL | MOD_SHIFT, VK_OEM_MINUS)
 
         # Apply exact physical size if preset was set before show()
         if self._pending_phys_size:
@@ -413,6 +422,8 @@ class LensWindow:
         user32.UnregisterHotKey(self._hwnd, 2)
         user32.UnregisterHotKey(self._hwnd, 3)
         user32.UnregisterHotKey(self._hwnd, 4)
+        user32.UnregisterHotKey(self._hwnd, 5)
+        user32.UnregisterHotKey(self._hwnd, 6)
         ctypes.windll.user32.ShowWindow(self._hwnd, 0)  # SW_HIDE
 
     def close(self):
@@ -421,6 +432,8 @@ class LensWindow:
             user32.UnregisterHotKey(self._hwnd, 2)
             user32.UnregisterHotKey(self._hwnd, 3)
             user32.UnregisterHotKey(self._hwnd, 4)
+            user32.UnregisterHotKey(self._hwnd, 5)
+            user32.UnregisterHotKey(self._hwnd, 6)
             ctypes.windll.user32.DestroyWindow(self._hwnd)
             self._hwnd = None
         self._release_bitmap()
@@ -586,6 +599,18 @@ class LensWindow:
             SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
         )
         logger.debug("nudge: phys dx=%d dy=%d pos=%d+%d", dx, dy, nx, ny)
+
+    def _adjust_scale(self, delta: float):
+        """Adjust scale by delta (e.g. +0.01 or -0.01) keeping top-left anchored."""
+        if not self.seed:
+            return
+        rect = wintypes.RECT()
+        ctypes.windll.user32.GetWindowRect(self._hwnd, ctypes.byref(rect))
+        current_w = rect.right - rect.left
+        current_scale = current_w / self.seed.aspect_w
+        new_scale = max(0.1, min(2.5, current_scale + delta))
+        self.set_size_from_scale(new_scale)
+        logger.debug("adjust_scale: delta=%+.2f scale=%.3f", delta, new_scale)
 
     # ------------------------------------------------------------------
     # Mouse handlers

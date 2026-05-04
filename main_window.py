@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QTabWidget, QLabel, QLineEdit, QPushButton, QSlider,
     QTextEdit, QProgressBar, QFileDialog, QMessageBox, QComboBox,
-    QInputDialog
+    QInputDialog, QDoubleSpinBox
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QImage, QPixmap
@@ -152,13 +152,22 @@ class MainWindow(QMainWindow):
 
         grid.addWidget(QLabel("Size:"), r, 0)
         self.slider_lens_size = QSlider(Qt.Orientation.Horizontal)
-        self.slider_lens_size.setRange(10, 250)
-        self.slider_lens_size.setValue(100)
+        self.slider_lens_size.setRange(100, 2500)  # 10.0% ~ 250.0%, step 0.1%
+        self.slider_lens_size.setValue(1000)
         self.slider_lens_size.setEnabled(False)
         self.slider_lens_size.valueChanged.connect(self._on_lens_slider_changed)
-        self.lbl_lens_size = QLabel("100% original")
+        self.spin_lens_size = QDoubleSpinBox()
+        self.spin_lens_size.setRange(10.0, 250.0)
+        self.spin_lens_size.setDecimals(1)
+        self.spin_lens_size.setSingleStep(0.1)
+        self.spin_lens_size.setSuffix("%")
+        self.spin_lens_size.setValue(100.0)
+        self.spin_lens_size.setEnabled(False)
+        self.spin_lens_size.valueChanged.connect(self._on_spinbox_changed)
+        self.lbl_lens_size = QLabel("original")
         hsize = QHBoxLayout()
-        hsize.addWidget(self.slider_lens_size)
+        hsize.addWidget(self.slider_lens_size, 1)
+        hsize.addWidget(self.spin_lens_size)
         hsize.addWidget(self.lbl_lens_size)
         grid.addLayout(hsize, r, 1, 1, 2)
         r += 1
@@ -301,6 +310,7 @@ class MainWindow(QMainWindow):
                 self.lens.resize(preset[0], preset[1])
             self.lens.start()
             self.slider_lens_size.setEnabled(True)
+            self.spin_lens_size.setEnabled(True)
             self.btn_start.setEnabled(False)
             self.btn_stop.setEnabled(True)
             self.btn_save_preset.setEnabled(True)
@@ -316,6 +326,7 @@ class MainWindow(QMainWindow):
         try:
             self.lens.stop()
             self.slider_lens_size.setEnabled(False)
+            self.spin_lens_size.setEnabled(False)
             self.btn_start.setEnabled(True)
             self.btn_stop.setEnabled(False)
             self.btn_save_preset.setEnabled(False)
@@ -338,17 +349,29 @@ class MainWindow(QMainWindow):
             self.combo_preset.setCurrentIndex(self.combo_preset.count() - 1)
 
     def _on_lens_slider_changed(self, value):
-        logger.info("slider value=%d", value)
         if not self.lens.is_visible():
-            logger.info("slider: lens not visible")
             return
         if not self.lens.seed:
-            logger.info("slider: no seed")
+            return
+        scale = value / 1000.0
+        self.spin_lens_size.blockSignals(True)
+        self.spin_lens_size.setValue(round(scale * 100, 1))
+        self.spin_lens_size.blockSignals(False)
+        self.lens.set_size_from_scale(scale)
+        logger.info("slider: set_size_from_scale scale=%.3f", scale)
+
+    def _on_spinbox_changed(self, value):
+        if not self.lens.is_visible():
+            return
+        if not self.lens.seed:
             return
         scale = value / 100.0
-        logger.info("slider: set_size_from_scale scale=%.2f", scale)
+        slider_val = int(round(scale * 1000))
+        self.slider_lens_size.blockSignals(True)
+        self.slider_lens_size.setValue(slider_val)
+        self.slider_lens_size.blockSignals(False)
         self.lens.set_size_from_scale(scale)
-        self.lbl_lens_size.setText(f"{value}% original")
+        logger.info("spinbox: set_size_from_scale scale=%.3f", scale)
 
     def closeEvent(self, event):
         if self.worker and self.worker.isRunning():
