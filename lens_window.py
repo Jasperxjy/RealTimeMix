@@ -360,6 +360,15 @@ class LensWindow:
             SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE
         )
 
+    def move(self, x: int, y: int):
+        """Move window to physical pixel position without changing size."""
+        if not self._hwnd:
+            return
+        ctypes.windll.user32.SetWindowPos(
+            self._hwnd, 0, int(x), int(y), 0, 0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
+        )
+
     def set_size_fit_screen(self):
         if not self.seed:
             return

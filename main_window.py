@@ -4,6 +4,7 @@ import os
 import time
 import logging
 import json
+import socket
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -12,7 +13,7 @@ from PyQt6.QtWidgets import (
     QInputDialog, QDoubleSpinBox, QFrame, QGroupBox, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QImage, QPixmap, QFont, QFontDatabase
+from PyQt6.QtGui import QImage, QPixmap
 import cv2
 import numpy as np
 from seed import Seed
@@ -329,6 +330,74 @@ QLabel#okLabel {
 """
 
 
+class NativeMessagingServer(QThread):
+    """TCP server that receives JSON commands from the browser extension
+    (via Native Messaging host bridge) and forwards them to MainWindow."""
+    message_received = pyqtSignal(dict)
+    status_changed = pyqtSignal(str)
+
+    def __init__(self, port=35421, parent=None):
+        super().__init__(parent)
+        self.port = port
+        self._running = True
+        self._sock = None
+
+    def run(self):
+        try:
+            self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._sock.bind(("127.0.0.1", self.port))
+            self._sock.listen(1)
+            self.status_changed.emit(f"Auto-align ready on port {self.port}")
+            logger.info("NativeMessagingServer listening on %s:%d", "127.0.0.1", self.port)
+        except Exception as e:
+            self.status_changed.emit(f"Auto-align server failed: {e}")
+            logger.exception("NativeMessagingServer bind failed")
+            return
+
+        while self._running:
+            try:
+                self._sock.settimeout(1.0)
+                conn, addr = self._sock.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+
+            try:
+                conn.settimeout(2.0)
+                data = b""
+                while True:
+                    chunk = conn.recv(4096)
+                    if not chunk:
+                        break
+                    data += chunk
+                if data:
+                    msg = json.loads(data.decode("utf-8"))
+                    self.message_received.emit(msg)
+                    resp = {"status": "ok"}
+                    conn.sendall((json.dumps(resp) + "\n").encode("utf-8"))
+            except Exception as e:
+                logger.exception("TCP handler error")
+                try:
+                    conn.sendall((json.dumps({"status": "error", "message": str(e)}) + "\n").encode("utf-8"))
+                except Exception:
+                    pass
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    def stop(self):
+        self._running = False
+        if self._sock:
+            try:
+                self._sock.close()
+            except Exception:
+                pass
+
+
 class VideoWorker(QThread):
     progress = pyqtSignal(int)
     finished_ok = pyqtSignal()
@@ -359,6 +428,7 @@ class MainWindow(QMainWindow):
         self.lens.on_close = self._stop_lens
         self.worker = None
         self._custom_presets = []
+        self._auto_align = False
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -397,6 +467,12 @@ class MainWindow(QMainWindow):
         self.status_label = QLabel("Ready")
         self.status_label.setObjectName("statusLabel")
         vlay.addWidget(self.status_label)
+
+        # Native Messaging TCP server (must be after status_label is created)
+        self._native_server = NativeMessagingServer(port=35421)
+        self._native_server.message_received.connect(self._on_native_message)
+        self._native_server.status_changed.connect(self.status_label.setText)
+        self._native_server.start()
 
     def _setup_encrypt_tab(self, tab):
         vlay = QVBoxLayout(tab)
@@ -537,6 +613,19 @@ class MainWindow(QMainWindow):
         hsize.addWidget(self.lbl_lens_size)
         ctrl_grid.addLayout(hsize, 1, 1, 1, 2)
 
+        # Auto-align toggle
+        align_hbox = QHBoxLayout()
+        self.btn_auto_align = QPushButton("🎯  Enable Auto Align")
+        self.btn_auto_align.setCheckable(True)
+        self.btn_auto_align.setMinimumHeight(36)
+        self.btn_auto_align.clicked.connect(self._toggle_auto_align)
+        self.lbl_auto_align = QLabel("Off")
+        self.lbl_auto_align.setStyleSheet("color: #64748b; font-size: 13px;")
+        align_hbox.addWidget(self.btn_auto_align)
+        align_hbox.addWidget(self.lbl_auto_align)
+        align_hbox.addStretch()
+        ctrl_grid.addLayout(align_hbox, 2, 0, 1, 3)
+
         btn_hbox = QHBoxLayout()
         btn_hbox.setSpacing(10)
         self.btn_start = QPushButton("▶  Start Lens")
@@ -556,7 +645,7 @@ class MainWindow(QMainWindow):
         btn_hbox.addWidget(self.btn_stop)
         btn_hbox.addWidget(self.btn_save_preset)
         btn_hbox.addStretch()
-        ctrl_grid.addLayout(btn_hbox, 2, 0, 1, 3)
+        ctrl_grid.addLayout(btn_hbox, 3, 0, 1, 3)
 
         ctrl_grid.setColumnStretch(1, 1)
         vlay.addWidget(ctrl_card)
@@ -738,6 +827,65 @@ class MainWindow(QMainWindow):
         except Exception:
             logger.exception("_stop_lens exception")
 
+    def _toggle_auto_align(self):
+        self._auto_align = self.btn_auto_align.isChecked()
+        state = "On" if self._auto_align else "Off"
+        color = "#10b981" if self._auto_align else "#64748b"
+        self.lbl_auto_align.setText(state)
+        self.lbl_auto_align.setStyleSheet(f"color: {color}; font-size: 13px;")
+        self.status_label.setText(f"Auto-align {state.lower()}")
+        logger.info("auto_align toggled: %s", state)
+
+    def _on_native_message(self, msg):
+        cmd = msg.get("cmd")
+        logger.info("native_message: cmd=%s", cmd)
+        if cmd == "align":
+            rect = msg.get("rect", {})
+            x = rect.get("x", 0)
+            y = rect.get("y", 0)
+            w = rect.get("width", 100)
+            h = rect.get("height", 100)
+            seed_str = self.edit_seed_in.toPlainText().strip()
+            if not seed_str:
+                self.status_label.setText("Auto-align: seed required")
+                return
+            seed = Seed.from_string(seed_str)
+            if not seed:
+                self.status_label.setText("Auto-align: invalid seed")
+                return
+            self.lens.set_seed(seed)
+            self.lens.move(x, y)
+            self.lens.resize(w, h)
+            if not self.lens.is_visible():
+                self._start_lens()
+            else:
+                self.status_label.setText("Lens aligned to target.")
+            # Log alignment for debugging drift
+            import ctypes
+            from ctypes import wintypes
+            r = wintypes.RECT()
+            ctypes.windll.user32.GetWindowRect(self.lens._hwnd, ctypes.byref(r))
+            debug = msg.get("debug", {})
+            logger.info(
+                "align: req=%dx%d+%d+%d act=%dx%d+%d+%d dpr=%s iframes=%s cssRect=%s screen=%s",
+                w, h, x, y, r.right-r.left, r.bottom-r.top, r.left, r.top,
+                debug.get("dpr"), debug.get("iframeDepth"),
+                debug.get("cssRect"), (debug.get("screenLeft"), debug.get("screenTop"))
+            )
+        elif cmd == "set_seed":
+            seed = msg.get("seed", "")
+            self.edit_seed_in.setPlainText(seed)
+            self._validate_seed_input()
+            self.status_label.setText("Seed updated from browser.")
+        elif cmd == "start_lens":
+            self._start_lens()
+        elif cmd == "stop_lens":
+            self._stop_lens()
+        elif cmd == "toggle_auto_align":
+            enabled = msg.get("enabled", False)
+            self.btn_auto_align.setChecked(enabled)
+            self._toggle_auto_align()
+
     def _save_current_preset(self):
         if not self.lens.is_visible():
             QMessageBox.information(self, "Info", "Start the lens first to save its size.")
@@ -803,5 +951,8 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         if self.worker and self.worker.isRunning():
             self.worker.wait(2000)
+        if self._native_server:
+            self._native_server.stop()
+            self._native_server.wait(2000)
         self.lens.close()
         event.accept()

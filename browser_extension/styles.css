@@ -1,0 +1,175 @@
+/* RealTimeMix Floating Action Button & Toast */
+#rtm-fab-container {
+  position: fixed !important;
+  bottom: 20px !important;
+  right: 20px !important;
+  z-index: 2147483647 !important;
+  font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+  color: #e2e8f0 !important;
+  user-select: none !important;
+}
+
+#rtm-fab-panel {
+  background-color: #1a1a2e !important;
+  border: 1px solid #2a2a3a !important;
+  border-radius: 12px !important;
+  padding: 14px !important;
+  width: 260px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+}
+
+#rtm-fab-panel.rtm-collapsed {
+  display: none !important;
+}
+
+#rtm-fab-toggle {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 50% !important;
+  background-color: #0ea5e9 !important;
+  color: #fff !important;
+  border: none !important;
+  font-size: 20px !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 4px 12px rgba(14,165,233,0.4) !important;
+  transition: transform 0.15s ease !important;
+}
+#rtm-fab-toggle:hover {
+  transform: scale(1.08) !important;
+  background-color: #0284c7 !important;
+}
+
+.rtm-title {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: #38bdf8 !important;
+  margin-bottom: 4px !important;
+}
+
+.rtm-seed-box {
+  background-color: #0f0f1a !important;
+  color: #e2e8f0 !important;
+  border: 1px solid #2a2a3a !important;
+  border-radius: 6px !important;
+  padding: 8px !important;
+  font-size: 13px !important;
+  resize: none !important;
+  height: 56px !important;
+  outline: none !important;
+}
+.rtm-seed-box:focus {
+  border-color: #38bdf8 !important;
+}
+
+.rtm-btn {
+  padding: 8px 12px !important;
+  border-radius: 8px !important;
+  border: none !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: background-color 0.15s ease !important;
+}
+.rtm-btn-primary {
+  background-color: #0ea5e9 !important;
+  color: #fff !important;
+}
+.rtm-btn-primary:hover {
+  background-color: #0284c7 !important;
+}
+.rtm-btn-danger {
+  background-color: #ef4444 !important;
+  color: #fff !important;
+}
+.rtm-btn-danger:hover {
+  background-color: #dc2626 !important;
+}
+.rtm-btn-secondary {
+  background-color: #1e293b !important;
+  color: #e2e8f0 !important;
+  border: 1px solid #334155 !important;
+}
+.rtm-btn-secondary:hover {
+  background-color: #27354f !important;
+}
+
+.rtm-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+}
+
+.rtm-toggle-wrap {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-size: 13px !important;
+  color: #94a3b8 !important;
+}
+
+.rtm-switch {
+  position: relative !important;
+  width: 36px !important;
+  height: 20px !important;
+  appearance: none !important;
+  background-color: #334155 !important;
+  border-radius: 10px !important;
+  cursor: pointer !important;
+  outline: none !important;
+  transition: background-color 0.2s ease !important;
+}
+.rtm-switch:checked {
+  background-color: #0ea5e9 !important;
+}
+.rtm-switch::after {
+  content: "" !important;
+  position: absolute !important;
+  top: 2px !important;
+  left: 2px !important;
+  width: 16px !important;
+  height: 16px !important;
+  background-color: #fff !important;
+  border-radius: 50% !important;
+  transition: transform 0.2s ease !important;
+}
+.rtm-switch:checked::after {
+  transform: translateX(16px) !important;
+}
+
+/* Toast */
+.rtm-toast {
+  position: fixed !important;
+  top: 20px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  padding: 10px 20px !important;
+  border-radius: 8px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: #fff !important;
+  z-index: 2147483647 !important;
+  pointer-events: none !important;
+  opacity: 0;
+  transition: opacity 0.3s ease !important;
+}
+.rtm-toast.show {
+  opacity: 1 !important;
+}
+.rtm-toast-info {
+  background-color: #0ea5e9 !important;
+}
+.rtm-toast-error {
+  background-color: #ef4444 !important;
+}
+.rtm-toast-success {
+  background-color: #10b981 !important;
+}
