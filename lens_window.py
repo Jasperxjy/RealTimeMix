@@ -271,6 +271,11 @@ class LensWindow:
             return 0
         if msg == WM_LBUTTONDBLCLK:
             self.stop()
+            if self.on_close:
+                try:
+                    self.on_close()
+                except Exception:
+                    logger.exception("on_close callback failed")
             return 0
         if msg == WM_RBUTTONUP:
             self._on_rbuttonup(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam))
@@ -286,9 +291,9 @@ class LensWindow:
             elif hid == 4:
                 self._nudge(0, 1)
             elif hid == 5:
-                self._adjust_scale(0.01)
+                self._adjust_scale(0.001)
             elif hid == 6:
-                self._adjust_scale(-0.01)
+                self._adjust_scale(-0.001)
             return 0
         if msg == WM_COMMAND:
             self._on_command(wparam)
@@ -601,7 +606,7 @@ class LensWindow:
         logger.debug("nudge: phys dx=%d dy=%d pos=%d+%d", dx, dy, nx, ny)
 
     def _adjust_scale(self, delta: float):
-        """Adjust scale by delta (e.g. +0.01 or -0.01) keeping top-left anchored."""
+        """Adjust scale by delta (e.g. +0.001 or -0.001 = ±0.1%) keeping top-left anchored."""
         if not self.seed:
             return
         rect = wintypes.RECT()
