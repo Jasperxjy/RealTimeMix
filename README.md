@@ -13,13 +13,22 @@
 
 ```
 RealTimeMix/
-├── main.py              # 程序入口
-├── main_window.py       # 主界面（Qt）
-├── lens_window.py       # 解密透镜（纯 Win32）
-├── scrambler.py         # 混淆/解混淆核心算法
-├── seed.py              # 种子编解码
+├── main.py                          # 程序入口
+├── main_window.py                   # 主界面（Qt）
+├── lens_window.py                   # 解密透镜（纯 Win32）
+├── scrambler.py                     # 混淆/解混淆核心算法
+├── seed.py                          # 种子编解码
+├── browser_extension/
+│   ├── manifest.json                # Chrome 扩展清单
+│   ├── content.js                   # 页面注入脚本
+│   ├── background.js                # Service Worker（Native Messaging 桥接）
+│   └── styles.css                   # 浮动面板样式
+├── native_host/
+│   ├── realtime_mix_host.py         # Native Messaging Host
+│   ├── com.realtimix.host.json      # Host 注册清单
+│   └── install_host.ps1             # 一键注册脚本（写入注册表）
 ├── README.md
-└── *.png                # 示例图片
+└── *.png                            # 示例图片
 ```
 
 ## 快速开始
@@ -47,6 +56,109 @@ python main.py
    - **右键菜单**：调整大小预设（100%/150%/200%/Fit/自定义）或关闭透镜
    - **双击**：关闭透镜
    - **Ctrl+Shift+方向键**：精确移动 1 物理像素
+
+---
+
+## Chrome 浏览器插件
+
+插件允许在浏览器中直接定位图片/视频元素，自动将解密透镜对齐到该元素的屏幕位置，无需手动拖拽。
+
+### 安装
+
+**1. 注册 Native Messaging Host**
+
+以管理员身份运行 PowerShell，执行：
+
+```powershell
+cd native_host
+.\install_host.ps1
+```
+
+脚本会将 `com.realtimix.host.json` 的路径写入注册表 `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.realtimix.host`，使 Chrome 能够找到并启动 Host 进程。
+
+**2. 加载 Chrome 扩展**
+
+1. 打开 `chrome://extensions`
+2. 开启右上角 **开发者模式**
+3. 点击 **加载已解压的扩展程序**，选择 `browser_extension/` 目录
+
+### 使用方法
+
+1. 启动 RealTimeMix 主程序（`python main.py`）
+2. 在主程序 "Decrypt Lens" 标签页粘贴种子
+3. 点击 **Enable Auto Align** 开启自动对齐
+4. 在浏览器页面点击插件浮动按钮（🔒），展开面板
+5. 粘贴种子到面板的 Seed 输入框，点击 **Apply Seed**
+6. 开启面板中的 **Auto Align** 开关
+7. 按住 **Ctrl+Shift**，左键点击页面上任意图片或视频元素
+8. 透镜窗口自动弹出并对齐到该元素位置
+
+### 插件面板功能
+
+| 控件 | 功能 |
+|------|------|
+| Seed 输入框 | 粘贴种子，点击 Apply Seed 发送给主程序 |
+| Auto Align 开关 | 开启后 Ctrl+Shift+左键 才会触发对齐 |
+| Start/Stop Lens | 远程控制主程序启动或停止透镜 |
+
+---
+
+## Chrome 插件技术方案
+
+### 架构
+
+```
+浏览器页面
+  └─ content.js（注入脚本）
+       │  chrome.runtime.sendMessage
+       ▼
+  background.js（Service Worker）
+       │  chrome.runtime.connectNative
+       ▼
+  realtime_mix_host.py（Native Messaging Host）
+       │  TCP JSON（localhost:35421）
+       ▼
+  main_window.py（RealTimeMix 主程序）
+       │
+       ▼
+  lens_window.py（Win32 透镜窗口）
+```
+
+### 坐标转换
+
+浏览器内的元素坐标（CSS 逻辑像素）需要转换为 Windows 物理屏幕坐标，才能正确定位 Win32 透镜窗口。
+
+**核心公式**：
+
+```javascript
+// e 为 mousedown 事件对象，rect 为元素的 getBoundingClientRect()
+const viewportLeft = e.screenX - e.clientX;  // viewport 左边缘的屏幕 CSS px 坐标
+const viewportTop  = e.screenY - e.clientY;  // viewport 顶边缘的屏幕 CSS px 坐标
+const x = Math.round((viewportLeft + rect.left) * dpr);
+const y = Math.round((viewportTop  + rect.top)  * dpr);
+```
+
+**为什么用 `e.screenX - e.clientX`**：
+
+- `window.screenLeft`/`screenTop` 是浏览器**窗口**左上角坐标，不包含地址栏、标签栏等 UI 高度
+- `outerHeight - innerHeight` 理论上等于浏览器 UI 高度，但全屏模式下不为 0，不可靠
+- `e.screenX - e.clientX` 直接从鼠标事件推算 viewport 原点，全屏和窗口模式下均精确，无需任何 UI 高度补偿
+
+**DPR 缩放**：`devicePixelRatio` 将 CSS 逻辑像素转为 Windows 物理像素（如 DPR=1.925 时，1 CSS px = 1.925 物理 px）。
+
+### Native Messaging 协议
+
+Chrome 扩展通过 [Chrome Native Messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging) 协议与本地程序通信：消息以 4 字节小端序长度前缀 + UTF-8 JSON 的格式通过 stdin/stdout 传输。`realtime_mix_host.py` 作为中间桥接层，将消息转发到主程序监听的 TCP 端口（`127.0.0.1:35421`）。
+
+### 消息格式
+
+| cmd | 方向 | 参数 | 说明 |
+|-----|------|------|------|
+| `align` | 插件 → 主程序 | `rect: {x, y, width, height}` | 将透镜对齐到指定物理像素矩形 |
+| `set_seed` | 插件 → 主程序 | `seed: string` | 设置解密种子 |
+| `start_lens` | 插件 → 主程序 | — | 启动透镜 |
+| `stop_lens` | 插件 → 主程序 | — | 停止透镜 |
+| `toggle_auto_align` | 插件 → 主程序 | `enabled: bool` | 同步 Auto Align 状态 |
 
 ---
 

@@ -94,12 +94,23 @@
     const { rect, iframeDepth, win } = getScreenRect(media);
     const dpr = win.devicePixelRatio || 1;
 
-    // Convert CSS pixels to physical screen pixels.
-    // screenLeft/screenTop on the *top* window give the viewport origin.
-    const x = Math.round((win.screenLeft + rect.left) * dpr);
-    const y = Math.round((win.screenTop + rect.top) * dpr);
-    const w = Math.round(rect.width * dpr);
+    // e.screenY - e.clientY gives the viewport top edge in CSS screen px,
+    // bypassing the need to know browser UI height. Same for X.
+    const viewportLeft = e.screenX - e.clientX;
+    const viewportTop  = e.screenY - e.clientY;
+    const x = Math.round((viewportLeft + rect.left) * dpr);
+    const y = Math.round((viewportTop  + rect.top)  * dpr);
+    const w = Math.round(rect.width  * dpr);
     const h = Math.round(rect.height * dpr);
+
+    console.log('[RTM align debug]', JSON.stringify({
+      screenX: e.screenX, screenY: e.screenY,
+      clientX: e.clientX, clientY: e.clientY,
+      viewportLeft, viewportTop,
+      rectLeft: rect.left, rectTop: rect.top,
+      rectW: rect.width, rectH: rect.height,
+      dpr, x, y, w, h,
+    }));
 
     send({
       cmd: 'align',
