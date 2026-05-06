@@ -50,7 +50,7 @@ python main.py
 ### 使用说明
 1. **加密**：切换到 "Encrypt" 标签页，选择图片或视频，调整块大小，点击 "Scramble & Save"。下方会显示生成的种子。
 
-<video src="demos/crypt_demo.gif" width="100%" autoplay loop muted playsinline></video>
+<img src="demos/crypt_demo.gif" width="100%" alt="Encrypt Demo">
 
 2. **解密透镜**：切换到 "Decrypt Lens" 标签页，粘贴种子，点击 "Start Lens"。透镜窗口会出现在屏幕上，拖动到任意位置即可实时解混淆该区域。
 3. **透镜交互**：
@@ -60,7 +60,7 @@ python main.py
    - **双击**：关闭透镜
    - **Ctrl+Shift+方向键**：精确移动 1 物理像素
 
-<video src="demos/decrypt_demo.gif" width="100%" autoplay loop muted playsinline></video>
+<img src="demos/decrypt_demo.gif" width="100%" alt="Decrypt Lens Demo">
 
 ---
 
@@ -98,7 +98,7 @@ cd native_host
 7. 按住 **Ctrl+Shift**，左键点击页面上任意图片或视频元素
 8. 透镜窗口自动弹出并对齐到该元素位置
 
-<video src="demos/auto_align_demo.gif" width="100%" autoplay loop muted playsinline></video>
+<img src="demos/auto_align_demo.gif" width="100%" alt="Auto Align Demo">
 
 ### 插件面板功能
 
