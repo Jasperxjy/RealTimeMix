@@ -49,6 +49,9 @@ python main.py
 
 ### 使用说明
 1. **加密**：切换到 "Encrypt" 标签页，选择图片或视频，调整块大小，点击 "Scramble & Save"。下方会显示生成的种子。
+
+<video src="demos/crypt_demo.mp4" width="100%" autoplay loop muted playsinline></video>
+
 2. **解密透镜**：切换到 "Decrypt Lens" 标签页，粘贴种子，点击 "Start Lens"。透镜窗口会出现在屏幕上，拖动到任意位置即可实时解混淆该区域。
 3. **透镜交互**：
    - **左键拖拽**：移动窗口
