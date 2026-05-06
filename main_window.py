@@ -16,7 +16,7 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QImage, QPixmap
 import cv2
 from seed import Seed
-from scrambler import scramble_image, scramble_video
+from scrambler import scramble_image, scramble_video, _find_ffmpeg
 from lens_window import LensWindow
 
 logger = logging.getLogger(__name__)
@@ -748,6 +748,16 @@ class MainWindow(QMainWindow):
             cap.release()
             seed = Seed(w, h, bs, seed_val)
             self.edit_seed_out.setPlainText(seed.to_string())
+
+            if _find_ffmpeg() is None:
+                reply = QMessageBox.information(
+                    self, "ffmpeg Not Found",
+                    "ffmpeg was not found on your system.\n\n"
+                    "Video will be encoded without audio.\n\n"
+                    "To include audio, install ffmpeg and make sure it's in your PATH.\n"
+                    "Download: https://ffmpeg.org/download.html",
+                    QMessageBox.StandardButton.Ok
+                )
 
             self.worker = VideoWorker(in_path, out_path, seed)
             self.worker.progress.connect(self.prog.setValue)
