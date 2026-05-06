@@ -3,6 +3,7 @@
   "name": "RealTimeMix Lens",
   "version": "1.0.0",
   "description": "Auto-align decrypt lens for RealTimeMix",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4iant0MujZ6mg/Oe6z6ZIMd/9t8pMu56fOEaNLcoTMHy1RDoZN9lZaCYvi17j3sSmisYGrbyJNi0MuiH0s0J6TxS7O10VS9EGg3K9pL09xNQh/8JrraA0xStnUZzTyRgwDpF44uKY+UMElBoLjMc1NPvmYDKJrKPzp9+ZjyI0NAydU+nwYWZ787c78JAxpyjKN0Vac18DI0e2g4QS/Bxd9rtAYZ3O0gRzfLuozEW1o57CQxrmlLaEsHXXyWnsDVpMyUXMLuOzDjxiuCA2nyjfsuAUvmHsmyYvqFSZMU+zCP4/mzQCQ/r0dg9Ph3ry9yL5MbYPnq4jaC4rtqboYPstwIDAQAB",
   "permissions": ["nativeMessaging", "activeTab"],
   "host_permissions": ["<all_urls>"],
   "background": {
