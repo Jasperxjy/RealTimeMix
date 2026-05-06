@@ -10,14 +10,13 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QTabWidget, QLabel, QLineEdit, QPushButton, QSlider,
     QTextEdit, QProgressBar, QFileDialog, QMessageBox, QComboBox,
-    QInputDialog, QDoubleSpinBox, QFrame, QGroupBox, QSizePolicy
+    QInputDialog, QDoubleSpinBox, QGroupBox
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QImage, QPixmap
 import cv2
-import numpy as np
 from seed import Seed
-from scrambler import scramble_image, descramble_image, scramble_video
+from scrambler import scramble_image, scramble_video
 from lens_window import LensWindow
 
 logger = logging.getLogger(__name__)

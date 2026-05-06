@@ -6,6 +6,7 @@ forwards them via TCP to the RealTimeMix main program on localhost:35421,
 and writes the TCP response back to stdout as length-prefixed JSON.
 """
 import json
+import os
 import socket
 import struct
 import sys

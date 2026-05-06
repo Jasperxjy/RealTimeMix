@@ -1,4 +1,3 @@
-import pytest
 from seed import Seed
 
 

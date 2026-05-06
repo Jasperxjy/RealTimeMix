@@ -17,8 +17,8 @@ logging.basicConfig(level=LOG_LEVEL, handlers=[handler], force=True)
 ctypes.windll.user32.SetProcessDpiAwarenessContext(-4)
 os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "0"
 
-from PyQt6.QtWidgets import QApplication
-from main_window import MainWindow
+from PyQt6.QtWidgets import QApplication  # noqa: E402
+from main_window import MainWindow  # noqa: E402
 
 def main():
     app = QApplication(sys.argv)

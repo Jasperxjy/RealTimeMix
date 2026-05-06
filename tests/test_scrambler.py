@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 from seed import Seed
 from scrambler import scramble_image, descramble_image, _find_ffmpeg
 

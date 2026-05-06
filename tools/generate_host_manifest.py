@@ -8,7 +8,6 @@ Otherwise it computes the ID from the extension directory path (unpacked).
 import json
 import base64
 import hashlib
-import os
 import sys
 from pathlib import Path
 
