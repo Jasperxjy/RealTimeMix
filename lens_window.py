@@ -3,6 +3,7 @@
 import math
 import gc
 import logging
+import os
 import ctypes
 from ctypes import wintypes
 import numpy as np
@@ -420,15 +421,18 @@ class LensWindow:
             logger.debug("DWM corner preference not available")
 
         # Exclude from capture (Win10 2004+)
-        try:
-            ok = ctypes.windll.user32.SetWindowDisplayAffinity(self._hwnd, WDA_EXCLUDEFROMCAPTURE)
-            if ok:
-                self._use_display_affinity = True
-                logger.info("SetWindowDisplayAffinity succeeded")
-            else:
-                logger.warning("SetWindowDisplayAffinity failed")
-        except OSError as e:
-            logger.warning("SetWindowDisplayAffinity not available: %s", e)
+        if os.environ.get("RTM_EXCLUDE_CAPTURE", "1") != "0":
+            try:
+                ok = ctypes.windll.user32.SetWindowDisplayAffinity(self._hwnd, WDA_EXCLUDEFROMCAPTURE)
+                if ok:
+                    self._use_display_affinity = True
+                    logger.info("SetWindowDisplayAffinity succeeded")
+                else:
+                    logger.warning("SetWindowDisplayAffinity failed")
+            except OSError as e:
+                logger.warning("SetWindowDisplayAffinity not available: %s", e)
+        else:
+            logger.info("SetWindowDisplayAffinity skipped (RTM_EXCLUDE_CAPTURE=0)")
 
     def stop(self):
         logger.info("LensWindow stop")
