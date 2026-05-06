@@ -11,7 +11,7 @@ import struct
 import sys
 
 HOST = "127.0.0.1"
-PORT = 35421
+PORT = int(os.environ.get("RTM_PORT", "35421"))
 
 
 def send_message(msg):
@@ -44,7 +44,7 @@ def forward_to_tcp(msg):
                 resp += chunk
             if resp:
                 return json.loads(resp.decode("utf-8"))
-    except Exception as e:
+    except (socket.error, OSError, ConnectionRefusedError) as e:
         return {"status": "error", "message": f"Main program not running: {e}"}
     return {"status": "ok"}
 

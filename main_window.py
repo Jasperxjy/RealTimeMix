@@ -22,7 +22,7 @@ from lens_window import LensWindow
 
 logger = logging.getLogger(__name__)
 
-PRESETS_FILE = Path("presets.json")
+PRESETS_FILE = Path(os.environ.get("RTM_PRESETS_FILE", "presets.json"))
 
 # ── Modern Dark Palette ──────────────────────────────────────────────
 APP_STYLE = """
@@ -469,7 +469,7 @@ class MainWindow(QMainWindow):
         vlay.addWidget(self.status_label)
 
         # Native Messaging TCP server (must be after status_label is created)
-        self._native_server = NativeMessagingServer(port=35421)
+        self._native_server = NativeMessagingServer(port=int(os.environ.get("RTM_PORT", "35421")))
         self._native_server.message_received.connect(self._on_native_message)
         self._native_server.status_changed.connect(self.status_label.setText)
         self._native_server.start()
@@ -906,7 +906,7 @@ class MainWindow(QMainWindow):
         try:
             with open(PRESETS_FILE, "r", encoding="utf-8") as f:
                 self._custom_presets = json.load(f)
-        except Exception:
+        except (json.JSONDecodeError, OSError):
             logger.exception("Failed to load presets")
             self._custom_presets = []
         for p in self._custom_presets:
@@ -920,7 +920,7 @@ class MainWindow(QMainWindow):
         try:
             with open(PRESETS_FILE, "w", encoding="utf-8") as f:
                 json.dump(self._custom_presets, f, ensure_ascii=False, indent=2)
-        except Exception:
+        except OSError:
             logger.exception("Failed to save presets")
 
     def _on_lens_slider_changed(self, value):

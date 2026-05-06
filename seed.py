@@ -2,6 +2,7 @@
 """Seed codec compatible with C++ version."""
 import struct
 import base64
+import binascii
 
 _CRC32_TABLE = [
     0x00000000,0x77073096,0xee0e612c,0x990951ba,0x076dc419,0x706af48f,0xe963a535,0x9e6495a3,
@@ -82,7 +83,7 @@ class Seed:
             s += '=' * pad
         try:
             raw = base64.urlsafe_b64decode(s.encode('ascii'))
-        except Exception:
+        except (ValueError, binascii.Error):
             return None
         if len(raw) != struct.calcsize(Seed.STRUCT_FMT):
             return None

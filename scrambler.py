@@ -157,7 +157,7 @@ def scramble_video(input_path: str, output_path: str, seed: Seed, progress_callb
             frame_idx += 1
             if progress_callback:
                 progress_callback(int(100 * frame_idx / max(total, 1)))
-    except Exception:
+    except (cv2.error, OSError, subprocess.SubprocessError):
         cap.release()
         if proc:
             proc.stdin.close()

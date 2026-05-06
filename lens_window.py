@@ -71,6 +71,7 @@ AC_SRC_ALPHA = 1
 ULW_ALPHA = 0x00000002
 BI_RGB = 0
 TPM_RIGHTBUTTON = 0x0002
+TIMER_INTERVAL_MS = 50
 
 # ------------------------------------------------------------------
 # Win32 structures
@@ -182,7 +183,7 @@ class LensWindow:
             try:
                 self._mss = mss.mss()
                 logger.info("mss initialized")
-            except Exception as e:
+            except (ImportError, RuntimeError) as e:
                 logger.warning("mss init failed: %s", e)
 
         # Callbacks to MainWindow
@@ -391,7 +392,7 @@ class LensWindow:
         logger.info("LensWindow start")
         self.frame_count = 0
         ctypes.windll.user32.ShowWindow(self._hwnd, 1)  # SW_SHOWNORMAL
-        ctypes.windll.user32.SetTimer(self._hwnd, self._timer_id, 50, 0)
+        ctypes.windll.user32.SetTimer(self._hwnd, self._timer_id, TIMER_INTERVAL_MS, 0)
 
         # Register global hotkeys for pixel nudge (no focus required)
         user32.RegisterHotKey(self._hwnd, 1, MOD_CONTROL | MOD_SHIFT, VK_LEFT)
@@ -415,7 +416,7 @@ class LensWindow:
                 ctypes.byref(pref), ctypes.sizeof(pref)
             )
             logger.info("DWM corner preference set to DONOTROUND")
-        except Exception:
+        except OSError:
             logger.debug("DWM corner preference not available")
 
         # Exclude from capture (Win10 2004+)
@@ -426,7 +427,7 @@ class LensWindow:
                 logger.info("SetWindowDisplayAffinity succeeded")
             else:
                 logger.warning("SetWindowDisplayAffinity failed")
-        except Exception as e:
+        except OSError as e:
             logger.warning("SetWindowDisplayAffinity not available: %s", e)
 
     def stop(self):
