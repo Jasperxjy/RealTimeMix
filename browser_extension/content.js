@@ -27,6 +27,17 @@
   function send(msg) {
     chrome.runtime.sendMessage(msg, (resp) => {
       if (chrome.runtime.lastError) {
+        const err = chrome.runtime.lastError.message || '';
+        if (err.includes('Extension context invalidated')) {
+          // Extension was reloaded; old content script is orphaned.
+          // Silently remove the stale FAB so the user isn't spammed with toasts.
+          const stale = document.getElementById('rtm-fab-container');
+          if (stale) {
+            stale.remove();
+            window.__rtmFabInjected = false;
+          }
+          return;
+        }
         showToast('RealTimeMix not connected', 'error');
       } else if (resp && resp.status === 'error') {
         showToast(resp.message || 'Error', 'error');
