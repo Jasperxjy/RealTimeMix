@@ -57,6 +57,8 @@ python main.py
    - **双击**：关闭透镜
    - **Ctrl+Shift+方向键**：精确移动 1 物理像素
 
+<video src="demos/decrypt_demo.mp4" width="100%" autoplay loop muted playsinline></video>
+
 ---
 
 ## Chrome 浏览器插件
@@ -92,6 +94,8 @@ cd native_host
 6. 开启面板中的 **Auto Align** 开关
 7. 按住 **Ctrl+Shift**，左键点击页面上任意图片或视频元素
 8. 透镜窗口自动弹出并对齐到该元素位置
+
+<video src="demos/auto_align_demo.mp4" width="100%" autoplay loop muted playsinline></video>
 
 ### 插件面板功能
 

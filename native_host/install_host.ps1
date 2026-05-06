@@ -4,16 +4,15 @@
     Install RealTimeMix Native Messaging Host for Chrome / Edge.
 
 .PARAMETER ExtensionId
-    The Chrome extension ID. If omitted, uses the built-in fixed extension ID
-    from the manifest "key" field.
+    The Chrome extension ID (required). Load the extension in Chrome developer
+    mode first, then copy the ID from chrome://extensions.
 
 .EXAMPLE
-    .\install_host.ps1
     .\install_host.ps1 -ExtensionId abcdefghijklmnopqrstuvwxyzabcdef
 #>
 param(
-    [Parameter(Mandatory=$false, HelpMessage="Chrome extension ID from chrome://extensions")]
-    [string]$ExtensionId = "e9acc287b06ed80b51f6d22473022c6e"
+    [Parameter(Mandatory=$true, HelpMessage="Chrome extension ID from chrome://extensions")]
+    [string]$ExtensionId
 )
 
 $ErrorActionPreference = "Stop"
