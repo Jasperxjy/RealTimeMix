@@ -1,7 +1,7 @@
 ﻿{
     "name":  "com.realtimix.host",
     "description":  "RealTimeMix Native Messaging Host",
-    "path":  "D:\\AgentProject\\RealTimeMix\\native_host\\realtime_mix_host.py",
+    "path":  "D:\\AgentProject\\RealTimeMix\\native_host\\host.bat",
     "type":  "stdio",
     "allowed_origins":  [
                             "chrome-extension://aoeclohcocmjillbjephggkjllohojhi/"

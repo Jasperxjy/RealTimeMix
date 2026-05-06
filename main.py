@@ -19,7 +19,7 @@ os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "0"
 from PyQt6.QtWidgets import QApplication
 from main_window import MainWindow
 
-if __name__ == '__main__':
+def main():
     app = QApplication(sys.argv)
     app.setApplicationName("RealTimeMix")
     app.setOrganizationName("RealTimeMix")
@@ -27,3 +27,7 @@ if __name__ == '__main__':
     w = MainWindow()
     w.show()
     sys.exit(app.exec())
+
+
+if __name__ == '__main__':
+    main()
