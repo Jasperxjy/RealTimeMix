@@ -27,3 +27,8 @@ Thumbs.db
 build/
 dist/
 *.egg-info/
+*.spec
+
+# Runtime generated files
+presets.json
+native_host/host.bat
